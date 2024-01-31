@@ -1,0 +1,92 @@
+name: Build & Push Container
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseImageRepo:
+        description: Base image repository, e.g. docker.io
+        required: false
+        default: "docker.io"
+      baseImageOrg:
+        description: Base image organisation, e.g. library
+        required: false
+        default: "library"
+      baseImageName:
+        description: Base image name, e.g. postgres
+        required: false
+        default: "postgres"
+      baseImageTag:
+        description: Base image tag, e.g. 15-alpine
+        required: false
+        default: "15-alpine"
+      llvmVersion:
+        description: LLVM major version, e.g. 15
+        required: false
+        default: "15"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    name: Build & Push Container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install QEMU
+        run: |
+          sudo apt-get update && sudo apt-get install -y qemu-user-static
+
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Get fully qualified base image name
+        id: get-base-image
+        run: |
+          IMAGE_NAME='${{ github.event.inputs.baseImageRepo }}/${{ github.event.inputs.baseImageOrg }}/${{ github.event.inputs.baseImageName }}:${{ github.event.inputs.baseImageTag }}'
+          echo "name=$IMAGE_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Get base image digest
+        id: get-digest
+        run: |
+          podman pull ${{ steps.get-base-image.outputs.name }}
+          DIGEST=$(podman images --filter=reference="${{ steps.get-base-image.outputs.name }}" --digests --format json | jq -r '.[0].Digest')
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Get build timestamp
+        id: get-timestamp
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "timestamp=$TIMESTAMP" >> "$GITHUB_OUTPUT"
+
+      - name: Build container image
+        id: build-image
+        uses: redhat-actions/buildah-build@b4dc19b4ba891854660ab1f88a097d45aa158f76 # v2
+        with:
+          image: ${{ github.event.inputs.baseImageName }}-with-pgtap
+          tags: ${{ github.event.inputs.baseImageTag }}
+          labels: |
+            org.opencontainers.image.created=${{ steps.get-timestamp.outputs.timestamp }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.base.name=${{ steps.get-base-image.outputs.name }}
+            org.opencontainers.image.base.digest=${{ steps.get-digest.outputs.digest }}
+          context: .
+          containerfiles: ./Containerfile
+          platforms: linux/amd64, linux/arm64/v8
+          build-args: |
+            BASE_REPO=${{ github.event.inputs.baseImageRepo }}
+            BASE_ORG=${{ github.event.inputs.baseImageOrg }}
+            BASE_IMAGE=${{ github.event.inputs.baseImageName }}
+            BASE_TAG=${{ github.event.inputs.baseImageTag }}
+            LLVM_VERSION=${{ github.event.inputs.llvmVersion }}
+
+      - name: Push image to GitHub Packages
+        uses: redhat-actions/push-to-registry@9986a6552bc4571882a4a67e016b17361412b4df # v2
+        with:
+          registry: ghcr.io/opencastsoftware
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+          image: ${{ github.event.inputs.baseImageName }}-with-pgtap
+          tags: ${{ steps.build-image.outputs.tags }}
