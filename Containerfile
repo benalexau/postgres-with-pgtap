@@ -7,7 +7,8 @@ FROM ${BASE_REPO}/${BASE_ORG}/${BASE_IMAGE}:${BASE_TAG}
 
 ARG LLVM_VERSION=15
 
-RUN apk add --no-cache py-pip perl-dev build-base "clang${LLVM_VERSION}" "llvm${LLVM_VERSION}" \
-	&& pip install --no-cache-dir pgxnclient \
+RUN apk add --no-cache py-pip pipx perl-dev build-base "clang${LLVM_VERSION}" "llvm${LLVM_VERSION}" \
+	&& pipx ensurepath \
+	&& pipx install pgxnclient \
 	&& cpan TAP::Parser::SourceHandler::pgTAP \
 	&& pgxn install pgtap
