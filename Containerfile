@@ -10,5 +10,6 @@ ARG LLVM_VERSION=15
 RUN apk add --no-cache py-pip pipx perl-dev build-base "clang${LLVM_VERSION}" "llvm${LLVM_VERSION}" \
 	&& pipx ensurepath \
 	&& pipx install pgxnclient \
-	&& cpan TAP::Parser::SourceHandler::pgTAP \
-	&& pgxn install pgtap
+	&& cpan TAP::Parser::SourceHandler::pgTAP
+
+RUN pgxn install pgtap
