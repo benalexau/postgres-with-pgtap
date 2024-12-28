@@ -23,6 +23,10 @@ on:
         description: LLVM major version, e.g. 15
         required: false
         default: "15"
+      destinationImageOrg:
+        description: Destination image organisation, e.g. GitHub organization
+        required: false
+        default: "opencastsoftware"
 
 permissions:
   contents: read
@@ -85,7 +89,7 @@ jobs:
       - name: Push image to GitHub Packages
         uses: redhat-actions/push-to-registry@9986a6552bc4571882a4a67e016b17361412b4df # v2
         with:
-          registry: ghcr.io/opencastsoftware
+          registry: ghcr.io/${{ github.event.inputs.destinationImageOrg }}
           username: ${{ github.actor }}
           password: ${{ github.token }}
           image: ${{ github.event.inputs.baseImageName }}-with-pgtap
